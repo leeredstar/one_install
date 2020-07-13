@@ -1,0 +1,357 @@
+#!/bin/sh
+#xw_lihongxing
+#email:estaryer@163.com
+red_col="\e[1;31m"  
+reset_col="\e[0m"
+base_dir=`pwd`
+###node1
+function caidan(){   
+cat <<lhx
++------------------------------------------------+  
+|                       1. 检查先决条件          |  
+|        _o0o_          2. 安装Nginx             |  
+|        08880          3. 安装jdk-1.8           |  
+|       88"."88         4. 安装MySQL             |  
+|       (|-_-|)         5. 安装redis             |  
+|        0\=/0          6. 部署Prometheus        |  
+|      __/   \__        7. 部署Docker环境        |  
+|     ‘\   ///‘         8. 退出此管理程序        |  
+|    / Linux一键 \                               |  
+|  ||    Server   ||    ======================   |    
+|  \        ////          一键安装服务           |  
+|   |||  i i i    |||           by LiHongXing    |  
+|   ___        ___      ======================   |  
+|___‘.  /--.--\ .‘___                            |  
++------------------------------------------------+  
+lhx
+}
+###node1###
+function env_check(){
+yum_file=/etc/yum.repos.d/Centos-7.repo
+jdk_file=jdk1.8.0_112_20180223.tar.gz
+if [ ! -f $yum_file ];then
+    echo "文件不存在，部署阿里云源"
+    curl CentOs-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo >/etc/yum.repos.d/Centos-7.repo
+    yum clean all
+    yum makecache
+    yum install epel-release -y
+else
+    echo "repo文件已存在，检查通过"
+fi
+if [ ! -f $jdk_file ];then
+    echo "文件不存在，请上传"
+else
+    echo "jdk文件已存在，检查通过"
+fi
+wget_exe=/usr/bin/wget
+if [ ! -f $wget_exe ];then
+    echo "wget没有安装，请安装"
+    yum install wget
+else
+    echo "wget已存在，检查通过"
+fi
+}
+###node2###
+function panduan (){  
+    read -p "请您输入{1-8}任意选项:" NUM  
+        expr $NUM + 1 &> /dev/null  
+    if [ "$?" -ne 0 ];then  
+        action "请您输入数值" /bin/false  
+    elif [[ "$NUM" == 0 ]];then  
+        action "请您输入比0大的数值" /bin/false  
+    fi  
+} 
+function Nginx_server(){
+echo -en "${red_col}开始安装Nginx服务,请稍后.....\n${reset_col}" 
+path=/usr/local/tengine
+if [ ! -d $path ];then
+    echo "文件夹不存在，可继续安装"
+else
+    echo "文件夹已存在，退出安装"
+    exit
+fi
+wget http://tengine.taobao.org/download/tengine-2.3.2.tar.gz
+nginx_file="tengine-2.3.2.tar.gz"
+if [ ! -f $nginx_file ];then
+    echo "文件不存在，请下载"
+    exit
+else
+    echo "nginx文件已存在，检查通过"
+    yum -y install gcc gcc-c++ pcre pcre-devel openssl openssl-devel zlib zlib-devel 
+fi
+
+if [ ! $? -eq 0 ];then
+    echo "nginx环境安装失败"
+    exit
+else
+    echo "检查环境成功"
+fi
+id webapp  &>/dev/null
+if [ ! $? -eq 0 ];then
+        useradd webapp && echo "12345678" |passwd --stdin nginx &>/dev/null
+fi
+tar -zxvf tengine*.tar.gz 
+cd tengine-2.3.2
+./configure --prefix=$path/tengine
+if [ ! $? -eq 0 ];then
+        echo "nginx解压失败"
+        exit
+else
+        echo "configure成功"
+fi
+make && make install
+if  [ ! $? -eq 0 ];then
+        echo "nginx编译失败"
+        exit
+else
+        echo "编译成功"
+fi
+cd ../ && echo "nginx安装完成"
+}
+#########jdk安装###
+function JDK_ENV(){
+path=/usr/local/jdk1.8.0_112
+if [ ! -d $path ];then
+    echo "文件夹不存在，可继续安装"
+    echo -en "${red_col}开始部署JDK,请稍后.....\n${reset_col}"
+else
+    echo "文件夹已存在，退出安装"
+    exit
+fi
+jdk_file="jdk1.8.0_112_20180223.tar.gz"
+if [ ! -f $file ];then
+    echo "文件不存在，退出安装"
+    exit
+else
+    echo "文件已存在，继续安装"
+    tar -zxvf jdk1.8.0_112_20180223.tar.gz -C /usr/local
+fi
+if [ ! $? -eq 0 ];then
+        echo "jdk解压失败"
+        exit
+else
+        echo "解压成功"
+fi
+cat >> /etc/profile << EOF
+export JAVA_HOME=/usr/local/jdk1.8.0_112
+export PATH=\$PATH:\$JAVA_HOME/bin
+EOF
+source /etc/profile    
+java_version=`java -version |grep Environment`
+if [ $java_version ];then
+        echo "jdk_deploy失败"
+else
+        echo "jdk_deploy成功"
+fi 
+}
+#########Mysql#####
+function Mysql_server(){ 
+echo -en "${red_col}开始安装Mysql服务,请稍后.....\n${reset_col}"
+path=/var/lib/mysql
+if [ ! -d $path ];then
+    echo "Mysql检测未安装，继续安装"
+else
+    echo "Mysql检测已安装，退出安装"
+    exit
+fi
+wget -i -c http://dev.mysql.com/get/mysql57-community-release-el7-10.noarch.rpm
+file="mysql57-community-release-el7-10.noarch.rpm"
+if [ ! -f $file ];then
+    echo "安装包不存在，退出安装"
+    exit
+else
+    echo "安装包已存在，继续安装"
+fi
+yum -y install mysql57-community-release-el7-10.noarch.rpm
+yum -y install mysql-community-server
+systemctl start  mysqld.service
+if [ ! $? -eq 0 ];then
+        echo "Mysql安装失败"
+        exit
+else
+        echo "Mysql安装成功"
+fi
+password=`grep 'password' /var/log/mysqld.log|awk  '{print $11}'`
+if [ -z "$password" ];then
+    echo "密码为空,请重置密码"
+else
+    echo "Mysql初始密码为 $password"
+fi
+}
+#########redis#####
+function redis_server() {
+echo -en "${red_col}开始安装Redis服务,请稍后.....\n${reset_col}"
+redis_path=/usr/local/redis/
+if [ ! -d $redis_path ];then
+    echo "redis未安装，可继续安装"
+else
+    echo "redis已安装，退出安装"
+    exit
+fi
+wget http://download.redis.io/releases/redis-5.0.8.tar.gz
+redis_file="redis-5.0.8.tar.gz"
+if [ ! -f $redis_file ];then
+    echo "redis安装包不存在，请下载"
+    exit
+else
+    echo "redis安装包已存在，检查通过"
+    tar -xvf redis-5.0.8.tar.gz
+fi
+cd redis-5.0.8
+if [ ! $? -eq 0 ];then
+        echo "redis解压失败"
+        exit
+else
+        echo "解压成功"
+fi
+make && make install PREFIX=$redis_path
+if  [ ! $? -eq 0 ];then
+        echo "redis编译失败"
+        exit
+else
+        echo "redis编译成功"
+fi
+echo -e "${red_col}redis安装完成!\n${reset_col}"
+mkdir /usr/local/redis/{conf,data}
+for i in $(seq 1 1 5)
+do
+cat >> $redis_path/conf/redis-630$i.conf << EOF
+daemonize   yes
+pidfile     $redis_path/data/redis-630$i.pid
+port        630$i
+dir         $redis_path/data/
+EOF
+echo "创建redis-630$i 成功"
+$redis_path/bin/redis-server  $redis_path/conf/redis-630$i.conf
+if  [ ! $? -eq 0 ];then
+        echo "redis-630$i 启动失败,即将退出"
+        exit
+else
+        echo "redis-630$i 启动成功"
+fi
+done
+}
+function prometheus(){
+echo -en "${red_col}开始安装Prometheus服务,请稍后.....\n${reset_col}"
+prometheus_file=prometheus-2.19.2.linux-amd64.tar.gz
+save_data_day="15d"
+prometheus_port=":9090"
+prometheus_name="prometheus-2.19.2"
+wget https://github.com/prometheus/prometheus/releases/download/v2.19.2/$prometheus_file
+if [ ! -f $prometheus_file ];then
+    echo "prometheus未存在"
+    exit
+else
+    echo "prometheus已存在，检查通过"
+fi
+tar -xvf prometheus-2.19.2.linux-amd64.tar.gz && mv prometheus-2.19.2.linux-amd64 $prometheus_name
+echo $?
+cd $prometheus_name
+echo $?
+nohup ./prometheus --storage.tsdb.retention=$save_data_day --web.listen-address="$prometheus_port" >/dev/null 2>&1 &
+echo $?
+prometheus_listen_port=`ps -ef |grep tsdb |wc -l`
+sleep 2
+echo $prometheus_listen_port
+if [ ! $prometheus_listen_port -gt 1 ];then
+    echo "prometheus安装失败"
+    exit
+else
+    echo "prometheus安装成功"
+fi
+}
+function docker_env(){
+echo -en "${red_col}开始安装Docker服务,请稍后.....\n${reset_col}"
+docker_path=/var/lib/docker
+yum remove docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-selinux \
+                  docker-engine-selinux \
+                  docker-engine
+if [ ! -d $docker_path ];then
+    echo "docker未安装，可继续安装"
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+    yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+    yum makecache fast
+    yum -y install docker-ce
+else
+    echo "docker已安装，退出安装"
+    exit
+fi
+if  [ ! $? -eq 0 ];then
+        echo "docker安装失败"
+        exit
+else
+        echo "docker安装成功"
+fi
+docker_config_file=/etc/docker
+systemctl start docker
+if  [ ! $? -eq 0 ];then
+        echo "docker启动失败"
+        exit
+else
+        echo "docker启动成功"
+        mkdir $docker_config_file
+fi
+cat >> $docker_config_file/daemon.json << EOF
+{
+  "registry-mirrors":  ["http://hub-mirror.c.163.com"]
+}
+EOF
+}
+#########exit######
+function TC(){  
+    echo -e "${red_col}此管理程序已经成功退出!\n${reset_col}"  
+    exit 0  
+} 
+#########panduan###
+function choice(){  
+while :  
+do  
+ panduan  
+    case $NUM in  
+        1)  
+        env_check  
+        caidan
+        ;;  
+        2)  
+        Nginx_server  
+        caidan
+        ;;  
+        3)  
+        JDK_ENV  
+        caidan
+        ;;  
+        4)  
+        Mysql_server  
+        caidan
+        ;;  
+        5)  
+        redis_server
+        caidan
+        ;;  
+        6)  
+        prometheus
+        caidan  
+        ;;  
+        7)  
+        docker_env
+        caidan 
+        ;;  
+        8)  
+        TC  
+        ;;  
+    esac  
+done  
+}
+if [ $USER == "root" ];then
+    caidan
+    choice 
+else
+    echo "您不是管理员，没有权限执行"
+fi
